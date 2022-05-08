@@ -45,6 +45,20 @@ var sources = map[int]Source{
 	},
 }
 
+type RssApp struct {
+	Application *tview.Application
+
+	SourcesBlock *tview.Table
+
+	TopicBlock *tview.Table
+	TopicChan  chan Source
+
+	ContentBlock *tview.TextView
+	ContentChan  chan Topic
+
+	Grid *tview.Grid
+}
+
 func readRss(si int) {
 	s := sources[si]
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -80,18 +94,9 @@ func readRss(si int) {
 
 }
 
-func showSources(blk *tview.TextView, t chan Source) {
-	go func() {
-		s := <-t
-		blk.SetText(s.Name)
-
-	}()
-}
-
-func showTopic(ra *RssApp) {
+func subscribeSourceChange(ra *RssApp) {
 	go func() {
 		s := <-ra.TopicChan
-		// readRss(&s)
 		createTopicTable(ra, s)
 	}()
 }
@@ -120,14 +125,14 @@ func createTopicTable(ra *RssApp, s Source) {
 			ra.TopicBlock.GetCell(i, 0).SetTextColor(tcell.ColorYellow).SetText(s.Topics[i].Name)
 		}
 		ra.ContentChan <- s.Topics[row]
-		showContent(ra)
+		subscribeTopicChange(ra)
 
 		ra.TopicBlock.GetCell(row, column).SetTextColor(tcell.ColorRed).SetText(s.Topics[row].Name)
 
 	})
 }
 
-func showContent(ra *RssApp) {
+func subscribeTopicChange(ra *RssApp) {
 	go func() {
 		s := <-ra.ContentChan
 
@@ -140,7 +145,7 @@ func showContent(ra *RssApp) {
 	}()
 }
 
-func createTable(ra *RssApp) {
+func buildSources(ra *RssApp) {
 	for i, sr := range sources {
 		ra.SourcesBlock.SetCell(i, 0,
 			tview.NewTableCell(sr.Name).
@@ -161,7 +166,7 @@ func createTable(ra *RssApp) {
 			ra.SourcesBlock.GetCell(i, 0).SetTextColor(tcell.ColorYellow).SetText(sources[i].Name)
 		}
 		ra.TopicChan <- sources[row]
-		showTopic(ra)
+		subscribeSourceChange(ra)
 
 		ra.SourcesBlock.GetCell(row, column).SetTextColor(tcell.ColorRed).SetText(sources[row].Name)
 	})
@@ -169,22 +174,7 @@ func createTable(ra *RssApp) {
 	ra.SourcesBlock.GetCell(0, 0).SetSelectable(true)
 }
 
-type RssApp struct {
-	Application *tview.Application
-
-	SourcesBlock *tview.Table
-
-	TopicBlock *tview.Table
-	TopicChan  chan Source
-
-	ContentBlock *tview.TextView
-	ContentChan  chan Topic
-
-	Grid *tview.Grid
-}
-
 func (ra *RssApp) GetHeader() *tview.TextView {
-
 	return tview.NewTextView().
 		SetTextAlign(tview.AlignLeft).
 		SetText(logo)
@@ -245,9 +235,9 @@ func main() {
 		ContentChan:  make(chan Topic),
 	}
 
-	createTable(&rssApp)
-	showTopic(&rssApp)
-	showContent(&rssApp)
+	buildSources(&rssApp)
+	subscribeSourceChange(&rssApp)
+	subscribeTopicChange(&rssApp)
 
 	rssApp.Render()
 

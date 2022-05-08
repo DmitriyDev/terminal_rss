@@ -9,4 +9,6 @@ This is an example of usage tview (Terminal GUI) functionality
 ```
 Click to focus on column
 "Enter" to process
+
+Ctrl + C to exit
 ```
